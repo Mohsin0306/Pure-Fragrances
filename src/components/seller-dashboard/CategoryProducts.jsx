@@ -12,10 +12,9 @@ import {
   RiPriceTag3Line
 } from 'react-icons/ri';
 
-const CategoryProducts = () => {
+const CategoryProducts = ({ products, productsLoading, setProductsLoading }) => {
   const { currentTheme } = useTheme();
   const { categoryId } = useParams();
-  const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [category, setCategory] = useState(null);
@@ -25,33 +24,18 @@ const CategoryProducts = () => {
   const [sortBy, setSortBy] = useState('default');
 
   useEffect(() => {
-    const fetchProducts = async () => {
-      try {
-        // Fetch all products from FakeStore API
-        const response = await fetch('https://fakestoreapi.com/products');
-        const data = await response.json();
-        setProducts(data);
-        setFilteredProducts(data);
-        
-        setCategory({
-          name: categoryId.replace(/-/g, ' ').replace(/(^\w|\s\w)/g, m => m.toUpperCase()),
-          description: "Explore our collection of premium products",
-          image: "https://images.unsplash.com/photo-1441986300917-64674bd600d8"
-        });
-        
-        setLoading(false);
-      } catch (error) {
-        console.error('Error:', error);
-        setLoading(false);
-      }
-    };
-
-    fetchProducts();
-  }, [categoryId]);
+    if (products.length > 0) {
+      const categoryProducts = products.filter(
+        p => p.category.toLowerCase() === categoryId.replace(/-/g, ' ').toLowerCase()
+      );
+      setFilteredProducts(categoryProducts);
+      setLoading(false);
+    }
+  }, [products, categoryId]);
 
   // Filter and search products
   useEffect(() => {
-    let result = [...products];
+    let result = [...filteredProducts];
 
     // Apply search filter
     if (searchQuery) {
@@ -85,7 +69,7 @@ const CategoryProducts = () => {
     }
 
     setFilteredProducts(result);
-  }, [searchQuery, products, priceRange, sortBy]);
+  }, [searchQuery, filteredProducts, priceRange, sortBy]);
 
   if (loading) {
     return (

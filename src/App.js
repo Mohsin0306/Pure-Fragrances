@@ -49,21 +49,6 @@ function App() {
     }
   }, [cartItems.length]);
 
-  // Fetch products
-  const fetchProducts = useCallback(async () => {
-    if (products.length === 0) {
-      try {
-        const response = await fetch('https://fakestoreapi.com/products');
-        const data = await response.json();
-        setProducts(data);
-      } catch (error) {
-        console.error('Error fetching products:', error);
-      } finally {
-        setProductsLoading(false);
-      }
-    }
-  }, [products.length]);
-
   // Fetch categories
   const fetchCategories = useCallback(async () => {
     if (categories.length === 0) {
@@ -110,7 +95,7 @@ function App() {
     products,
     setProducts,
     productsLoading,
-    fetchProducts
+    setProductsLoading
   };
 
   const categoryProps = {

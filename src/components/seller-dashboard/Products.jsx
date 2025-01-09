@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTheme } from '../../context/ThemeContext';
@@ -13,49 +13,118 @@ import {
   RiPriceTag3Line
 } from 'react-icons/ri';
 
-const Products = ({ products, productsLoading, fetchProducts }) => {
+const Products = () => {
   const { currentTheme } = useTheme();
   const location = useLocation();
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const isProductPage = location.pathname === '/products';
+  const [products, setProducts] = useState([]);
+  const [productsLoading, setProductsLoading] = useState(true);
 
-  // Use effect to fetch data only if needed
-  React.useEffect(() => {
+  const fetchProducts = async () => {
+    try {
+      setProductsLoading(true);
+      
+      // Fetch from all APIs
+      const [fakeStoreResponse, dummyJsonResponse, fakeStoreApiResponse] = await Promise.all([
+        fetch('https://fakestoreapi.in/api/products'),
+        fetch('https://dummyjson.com/products'),
+        fetch('https://fakestoreapi.com/products')
+      ]);
+
+      const fakeStoreData = await fakeStoreResponse.json();
+      const dummyJsonData = await dummyJsonResponse.json();
+      const fakeStoreApiData = await fakeStoreApiResponse.json();
+
+      // Normalize data from each API
+      const fakeStoreProducts = (fakeStoreData?.products || []).map(p => ({
+        id: `fakestore-${p.id}`,
+        title: p.title || 'Untitled Product',
+        description: p.description || 'No description available',
+        price: parseFloat(p.price) || 0,
+        image: p.image || 'https://via.placeholder.com/300x300?text=Product+Image',
+        category: p.category || 'Uncategorized',
+        rating: typeof p.rating === 'object' ? p.rating : { rate: 4.0, count: 100 },
+        stock: parseInt(p.stock) || 100,
+        brand: p.brand || 'Generic',
+        source: 'fakestore'
+      }));
+
+      const dummyJsonProducts = (dummyJsonData?.products || []).map(p => ({
+        id: `dummy-${p.id}`,
+        title: p.title || 'Untitled Product',
+        description: p.description || 'No description available',
+        price: parseFloat(p.price) || 0,
+        image: p.thumbnail || p.images?.[0] || 'https://via.placeholder.com/300x300?text=Product+Image',
+        category: p.category || 'Uncategorized',
+        rating: p.rating || { rate: 4.0, count: 100 },
+        stock: parseInt(p.stock) || 100,
+        brand: p.brand || 'Generic',
+        source: 'dummyjson'
+      }));
+
+      const fakeStoreApiProducts = (fakeStoreApiData || []).map(p => ({
+        id: `fakestoreapi-${p.id}`,
+        title: p.title || 'Untitled Product',
+        description: p.description || 'No description available',
+        price: parseFloat(p.price) || 0,
+        image: p.image || 'https://via.placeholder.com/300x300?text=Product+Image',
+        category: p.category || 'Uncategorized',
+        rating: typeof p.rating === 'object' ? p.rating : { rate: 4.0, count: 100 },
+        stock: 100,
+        brand: 'Generic',
+        source: 'fakestoreapi'
+      }));
+
+      const allProducts = [...fakeStoreProducts, ...dummyJsonProducts, ...fakeStoreApiProducts];
+      setProducts(allProducts);
+      setProductsLoading(false);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+      setProductsLoading(false);
+    }
+  };
+
+  // Add useEffect to fetch products only once
+  useEffect(() => {
     fetchProducts();
-  }, [fetchProducts]);
+  }, []);
 
-  // Product sections for organization
-  const productSections = [
+  // Update product sections to show all products in scrollable sections
+  const productSections = useMemo(() => [
     { 
-      id: 'featured', 
-      name: 'Featured Collection', 
+      id: 'fakestore', 
+      name: 'Featured Products', 
       icon: <RiStarLine className="text-yellow-500" size={20} />,
-      products: products.filter(p => p.rating?.rate >= 4).slice(0, 8)
+      products: products.filter(p => p.source === 'fakestore')
     },
     { 
-      id: 'trending', 
-      name: 'Trending Now', 
+      id: 'dummyjson', 
+      name: 'Trending Products', 
       icon: <RiFireLine className="text-orange-500" size={20} />,
-      products: products.filter(p => p.rating?.count >= 200).slice(0, 8)
+      products: products.filter(p => p.source === 'dummyjson')
     },
     { 
-      id: 'new', 
+      id: 'fakestoreapi', 
       name: 'New Arrivals', 
       icon: <RiLeafLine className="text-green-500" size={20} />,
-      products: [...products].reverse().slice(0, 8)
+      products: products.filter(p => p.source === 'fakestoreapi')
     }
-  ];
+  ], [products]);
 
   // Product Card Component
   const ProductCard = ({ product }) => {
     const navigate = useNavigate();
+    const [imageError, setImageError] = useState(false);
+    
+    const fallbackImage = "https://via.placeholder.com/300x300?text=Product+Image";
     
     return (
       <motion.div
         whileHover={{ y: -5 }}
         onClick={() => navigate(`/products/${product.id}`)}
-        className={`cursor-pointer min-w-[160px] sm:min-w-[200px] rounded-xl overflow-hidden ${
+        className={`cursor-pointer w-[160px] sm:w-[180px] rounded-xl overflow-hidden ${
           currentTheme === 'dark' 
             ? 'bg-gray-800 hover:bg-gray-700' 
             : currentTheme === 'eyeCare'
@@ -63,11 +132,13 @@ const Products = ({ products, productsLoading, fetchProducts }) => {
             : 'bg-white hover:bg-gray-50'
         }`}
       >
-        <div className="relative h-36 bg-white p-2">
+        <div className="relative h-32 bg-white p-2">
           <img 
-            src={product.image} 
+            src={imageError ? fallbackImage : product.image} 
             alt={product.title}
             className="w-full h-full object-contain"
+            onError={() => setImageError(true)}
+            loading="lazy"
           />
           <button className={`absolute top-2 right-2 p-1.5 rounded-full ${
             currentTheme === 'dark' 
@@ -80,18 +151,18 @@ const Products = ({ products, productsLoading, fetchProducts }) => {
           </button>
         </div>
 
-        <div className="p-3">
-          <h3 className="font-medium text-sm line-clamp-1 mb-1">
+        <div className="p-3 space-y-2">
+          <h3 className="font-medium text-sm truncate" title={product.title}>
             {product.title}
           </h3>
-          <div className="flex items-center gap-1 mb-2">
+          <div className="flex items-center gap-1">
             <RiPriceTag3Line size={12} className="opacity-60" />
-            <span className="text-xs capitalize opacity-60">
+            <span className="text-xs capitalize opacity-60 truncate">
               {product.category}
             </span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="font-semibold">${product.price}</span>
+            <span className="font-semibold text-sm">${product.price}</span>
             <button className={`p-1.5 rounded-full ${
               currentTheme === 'dark' 
                 ? 'bg-white text-gray-900' 
@@ -109,85 +180,23 @@ const Products = ({ products, productsLoading, fetchProducts }) => {
 
   // Product Section Component
   const ProductSection = ({ section }) => {
-    const scrollRef = useRef(null);
-
     return (
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            {section.icon}
-            <h2 className="text-lg font-semibold">{section.name}</h2>
-          </div>
-          {isProductPage && (
-            <button className="text-sm opacity-60 hover:opacity-100">
-              View All
-            </button>
-          )}
+      <div className="mb-12">
+        <div className="flex items-center gap-2 mb-6">
+          {section.icon}
+          <h2 className="text-xl font-semibold">{section.name}</h2>
+          <span className="text-sm opacity-60">({section.products.length} items)</span>
         </div>
-        
-        <div 
-          ref={scrollRef}
-          className="flex gap-4 overflow-x-auto pb-4"
-          style={{
-            // Mobile styles (hidden scrollbar)
-            [`@media (max-width: 768px)`]: {
-              msOverflowStyle: 'none',
-              scrollbarWidth: 'none',
-              WebkitOverflowScrolling: 'touch',
-              '&::-webkit-scrollbar': {
-                display: 'none'
-              }
-            },
-            // Desktop styles (modern transparent scrollbar)
-            scrollbarWidth: 'thin',
-            scrollbarColor: currentTheme === 'dark' 
-              ? 'rgba(75, 85, 99, 0.3) transparent'
-              : currentTheme === 'eyeCare' 
-              ? 'rgba(67, 52, 34, 0.2) transparent'
-              : 'rgba(107, 114, 128, 0.2) transparent',
-            '&::-webkit-scrollbar': {
-              height: '6px', // Slightly smaller for modern look
-              width: '6px'
-            },
-            '&::-webkit-scrollbar-track': {
-              background: 'transparent',
-              margin: '0 4px' // Add some space around the scrollbar
-            },
-            '&::-webkit-scrollbar-thumb': {
-              background: currentTheme === 'dark' 
-                ? 'rgba(75, 85, 99, 0.3)'
-                : currentTheme === 'eyeCare' 
-                ? 'rgba(67, 52, 34, 0.2)'
-                : 'rgba(107, 114, 128, 0.2)',
-              borderRadius: '10px',
-              border: '2px solid transparent',
-              backgroundClip: 'padding-box',
-              '&:hover': {
-                background: currentTheme === 'dark' 
-                  ? 'rgba(75, 85, 99, 0.5)'
-                  : currentTheme === 'eyeCare' 
-                  ? 'rgba(67, 52, 34, 0.4)'
-                  : 'rgba(107, 114, 128, 0.4)'
-              },
-              '&:active': {
-                background: currentTheme === 'dark' 
-                  ? 'rgba(75, 85, 99, 0.6)'
-                  : currentTheme === 'eyeCare' 
-                  ? 'rgba(67, 52, 34, 0.5)'
-                  : 'rgba(107, 114, 128, 0.5)'
-              }
-            },
-            // Add smooth scroll behavior
-            scrollBehavior: 'smooth',
-            // Prevent horizontal scroll snap
-            scrollSnapType: 'none',
-            // Better touch scrolling on mobile
-            WebkitOverflowScrolling: 'touch'
-          }}
-        >
-          {section.products.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
+        <div className="relative">
+          <div className="overflow-x-auto pb-4 hide-scrollbar">
+            <div className="flex gap-3 min-w-full">
+              {section.products.map(product => (
+                <div key={product.id} className="flex-shrink-0">
+                  <ProductCard product={product} />
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -310,6 +319,22 @@ const Products = ({ products, productsLoading, fetchProducts }) => {
       </div>
     </div>
   );
+
+  // Add CSS for hiding scrollbar but keeping functionality
+  const styles = `
+    .hide-scrollbar {
+      -ms-overflow-style: none;  /* IE and Edge */
+      scrollbar-width: none;  /* Firefox */
+    }
+    .hide-scrollbar::-webkit-scrollbar {
+      display: none;  /* Chrome, Safari and Opera */
+    }
+  `;
+
+  // Add style tag to head
+  const styleSheet = document.createElement("style");
+  styleSheet.innerText = styles;
+  document.head.appendChild(styleSheet);
 
   if (productsLoading) {
     return (
