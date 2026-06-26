@@ -28,7 +28,7 @@ const Products = () => {
       
       // Fetch from all APIs
       const [fakeStoreResponse, dummyJsonResponse, fakeStoreApiResponse] = await Promise.all([
-        fetch('https://fakestoreapi.in/api/products'),
+        fetch('https://fakestoreapi.com/products'),
         fetch('https://dummyjson.com/products'),
         fetch('https://fakestoreapi.com/products')
       ]);
